@@ -9,7 +9,7 @@ resource "lxd_network" "network" {
     }
 }
 
-resource "lxd_storage_pool" "pac_pool" {
+resource "lxd_storage_pool" "pool" {
     name = local.app_name
     driver = "lvm"
     config = {
@@ -18,16 +18,6 @@ resource "lxd_storage_pool" "pac_pool" {
         "volume.block.filesystem"   = "xfs"
     }
 }
-
-# resource "lxd_volume" "pac_volumes" {
-#     count = local.global_count
-
-#     name = "disk${count.index+1}"
-#     pool = "${lxd_storage_pool.pac_pool.name}"
-#     config = {
-#         size = "5GiB"
-#     }
-# }
 
 resource "lxd_container" "droplets" {
     count = local.global_count
@@ -44,7 +34,7 @@ resource "lxd_container" "droplets" {
 
             ${yamlencode(local.cloud_init.user_data)}
         EOT
-        "user.network-config"   = yamlencode(local.cloud_init.network_config)
+        //"user.network-config"   = yamlencode(local.cloud_init.network_config)
     }
 
     limits = {
@@ -58,7 +48,7 @@ resource "lxd_container" "droplets" {
 
         properties = {
             nictype         = "bridged"
-            parent          = local.app_name
+            parent          = lxd_network.network.name
             "ipv4.address"  = "${local.network_octet}.${count.index+2}"
         }
     }
@@ -69,7 +59,7 @@ resource "lxd_container" "droplets" {
 
         properties = {
             path    = "/"
-            pool    = "${lxd_storage_pool.pac_pool.name}"
+            pool    = lxd_storage_pool.pool.name
         }
     }
 }
