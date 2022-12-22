@@ -1,44 +1,49 @@
 provider "lxd" {}
 
 resource "lxd_network" "network" {
-    name = local.app_name
-    
+    name = "playground"
+
     config = {
-        "ipv4.address" = "${local.network_octet}.1/24"
+        "ipv4.address" = "192.168.4.1/24"
         "ipv4.nat"     = true
     }
 }
 
 resource "lxd_storage_pool" "pool" {
-    name = local.app_name
+    name = "playground"
     driver = "lvm"
     config = {
-        source                      = "/var/snap/lxd/common/lxd/disks/${local.app_name}.img"
-        size                        = "20GiB"
-        "volume.block.filesystem"   = "xfs"
+        source                      = "/var/snap/lxd/common/lxd/disks/playground.img"
+        size                        = "65GiB"
+        "volume.block.filesystem"   = "ext4"
     }
 }
 
 resource "lxd_container" "droplets" {
-    count = local.global_count
+    count = 1
 
     name      = "host${count.index+1}"
-    image     = "ubuntu:e299296138c2"
+    image     = "ubuntu_22.04" // images:4574619138f7
     ephemeral = false
     start_container = true
 
     config = {
-        "boot.autostart"        = true
-        "user.user-data"        = <<-EOT
+        "boot.autostart"                        = true
+        "security.nesting"                      = true
+        "security.syscalls.intercept.mknod"     = true
+        "security.syscalls.intercept.setxattr"  = true
+        "user.user-data"                    = <<-EOT
             #cloud-config
 
             ${yamlencode(local.cloud_init.user_data)}
         EOT
-        //"user.network-config"   = yamlencode(local.cloud_init.network_config)
+        "user.network-config"               = <<-EOT
+            ${yamlencode(local.cloud_init.network_config)}
+        EOT
     }
 
     limits = {
-        cpu     = "1"
+        cpu     = 1
         memory  = "2048MiB"
     }
 
@@ -48,8 +53,8 @@ resource "lxd_container" "droplets" {
 
         properties = {
             nictype         = "bridged"
-            parent          = lxd_network.network.name
-            "ipv4.address"  = "${local.network_octet}.${count.index+2}"
+            parent          = "${lxd_network.network.name}"
+            "ipv4.address"  = "192.168.4.${count.index+2}"
         }
     }
 
@@ -58,8 +63,9 @@ resource "lxd_container" "droplets" {
         name = "root"
 
         properties = {
-            path    = "/"
-            pool    = lxd_storage_pool.pool.name
+            path = "/"
+            pool = "${lxd_storage_pool.pool.name}"
+            size = "15GiB"
         }
     }
 }
